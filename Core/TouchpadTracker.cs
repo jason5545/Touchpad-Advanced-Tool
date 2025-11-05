@@ -196,14 +196,65 @@ namespace TouchpadAdvancedTool.Core
         /// <summary>
         /// 檢查滑鼠事件是否來自觸控板
         /// </summary>
-        public bool IsMouseEventFromTouchpad()
+        /// <param name="settings">觸控板設定（用於除錯模式）</param>
+        /// <returns>如果滑鼠事件來自觸控板則返回 true，否則返回 false</returns>
+        public bool IsMouseEventFromTouchpad(TouchpadSettings settings)
         {
             // 使用時間關聯法：如果在短時間內有觸控板事件，則認為滑鼠事件來自觸控板
-            const int correlationWindowMs = 100; // 100ms 關聯視窗
+            // 根據驗證報告建議，將時間視窗從 100ms 縮短到 30ms 以減少誤判
+            const int correlationWindowMs = 30; // 30ms 關聯視窗（原為 100ms）
             var timeSinceLastTouchpad = DateTime.Now - _lastTouchpadEventTime;
 
-            return timeSinceLastTouchpad.TotalMilliseconds < correlationWindowMs
-                   && _activeContacts.Count > 0;
+            // 基本時間檢查
+            if (timeSinceLastTouchpad.TotalMilliseconds >= correlationWindowMs)
+            {
+                if (settings.DebugMode)
+                {
+                    _logger.LogDebug(
+                        "裝置判斷：時間差={TimeDiff:F1}ms 超過閾值 {Threshold}ms，判斷為非觸控板事件",
+                        timeSinceLastTouchpad.TotalMilliseconds,
+                        correlationWindowMs);
+                }
+                return false;
+            }
+
+            // 檢查是否有活動的觸控點
+            if (_activeContacts.Count == 0)
+            {
+                if (settings.DebugMode)
+                {
+                    _logger.LogDebug("裝置判斷：無活動觸控點，判斷為非觸控板事件");
+                }
+                return false;
+            }
+
+            // 檢查觸控點是否在移動
+            // 如果觸控點靜止但滑鼠在移動，可能是真實滑鼠
+            if (_primaryContact != null)
+            {
+                bool touchpadIsMoving = _primaryContact.DeltaX != 0 || _primaryContact.DeltaY != 0;
+                if (!touchpadIsMoving)
+                {
+                    if (settings.DebugMode)
+                    {
+                        _logger.LogDebug(
+                            "裝置判斷：觸控點靜止（Delta=0），判斷為非觸控板事件");
+                    }
+                    return false;
+                }
+            }
+
+            // 所有檢查通過，判斷為觸控板事件
+            if (settings.DebugMode)
+            {
+                _logger.LogDebug(
+                    "裝置判斷：時間差={TimeDiff:F1}ms, 觸控點數={ContactCount}, 觸控點移動={IsMoving}, 判斷結果=觸控板",
+                    timeSinceLastTouchpad.TotalMilliseconds,
+                    _activeContacts.Count,
+                    _primaryContact != null ? $"({_primaryContact.DeltaX}, {_primaryContact.DeltaY})" : "N/A");
+            }
+
+            return true;
         }
 
         /// <summary>

@@ -288,7 +288,7 @@ namespace TouchpadAdvancedTool.ViewModels
                 return;
 
             // 如果在捲動區內且滑鼠事件來自觸控板，則攔截
-            if (_touchpadTracker.IsInScrollZone && _touchpadTracker.IsMouseEventFromTouchpad())
+            if (_touchpadTracker.IsInScrollZone && _touchpadTracker.IsMouseEventFromTouchpad(Settings))
             {
                 args.ShouldIntercept = true;
             }
