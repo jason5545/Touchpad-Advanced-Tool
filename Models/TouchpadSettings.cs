@@ -20,6 +20,7 @@ namespace TouchpadSideScroll.Models
         private bool _invertScrollDirection = false;
         private bool _enableHorizontalScroll = false;
         private bool _invertHorizontalScroll = false;
+        private bool _showTouchVisualization = true;
 
         private int _minimumContactsForScroll = 1;
         private int _maximumContactsForScroll = 1;
@@ -136,6 +137,15 @@ namespace TouchpadSideScroll.Models
         {
             get => _enableHorizontalScroll;
             set => SetProperty(ref _enableHorizontalScroll, value);
+        }
+
+        /// <summary>
+        /// 顯示觸控板視覺化預覽
+        /// </summary>
+        public bool ShowTouchVisualization
+        {
+            get => _showTouchVisualization;
+            set => SetProperty(ref _showTouchVisualization, value);
         }
 
         /// <summary>

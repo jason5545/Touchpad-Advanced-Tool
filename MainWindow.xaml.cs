@@ -1,11 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Navigation;
+using System.Windows.Shapes;
+using TouchpadSideScroll.Core;
 using TouchpadSideScroll.Models;
 using TouchpadSideScroll.ViewModels;
 
@@ -19,6 +24,9 @@ namespace TouchpadSideScroll
         private MainViewModel? _viewModel;
         private HwndSource? _hwndSource;
         private Hardcodet.Wpf.TaskbarNotification.TaskbarIcon? _notifyIcon;
+        private readonly List<Point> _trailPoints = new();
+        private const int MaxTrailPoints = 30;
+        private Storyboard? _pulseAnimation;
 
         public MainWindow()
         {
@@ -46,8 +54,30 @@ namespace TouchpadSideScroll
                 _hwndSource = HwndSource.FromHwnd(windowHandle);
                 _hwndSource?.AddHook(WndProc);
 
+                // 訂閱觸控板事件以更新視覺化
+                var touchpadTracker = App.GetService<TouchpadTracker>();
+                var rawInputManager = App.GetService<RawInputManager>();
+
+                touchpadTracker.EnterScrollZone += OnEnterScrollZone;
+                touchpadTracker.ExitScrollZone += OnExitScrollZone;
+                rawInputManager.TouchpadInput += OnTouchpadInputForVisualization;
+                rawInputManager.TouchpadDetected += OnTouchpadDetectedForVisualization;
+
+                // 設定變更時更新捲動區
+                _viewModel.Settings.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(TouchpadSettings.ScrollZoneWidth) ||
+                        e.PropertyName == nameof(TouchpadSettings.ScrollZonePosition))
+                    {
+                        UpdateScrollZoneVisualization();
+                    }
+                };
+
                 // 初始化 ViewModel
                 _viewModel.Initialize(windowHandle);
+
+                // 建立觸控點脈衝動畫
+                CreatePulseAnimation();
             }
             catch (Exception ex)
             {
@@ -176,8 +206,213 @@ namespace TouchpadSideScroll
         {
             _hwndSource?.RemoveHook(WndProc);
             _notifyIcon?.Dispose();
+            _pulseAnimation?.Stop();
             base.OnClosed(e);
         }
+
+        #region 觸控板視覺化
+
+        /// <summary>
+        /// 建立觸控點脈衝動畫
+        /// </summary>
+        private void CreatePulseAnimation()
+        {
+            _pulseAnimation = new Storyboard { RepeatBehavior = RepeatBehavior.Forever };
+
+            var scaleXAnim = new DoubleAnimation
+            {
+                From = 1.0,
+                To = 1.2,
+                Duration = TimeSpan.FromSeconds(0.8),
+                AutoReverse = true,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            };
+            Storyboard.SetTarget(scaleXAnim, TouchPointScale);
+            Storyboard.SetTargetProperty(scaleXAnim, new PropertyPath(ScaleTransform.ScaleXProperty));
+
+            var scaleYAnim = new DoubleAnimation
+            {
+                From = 1.0,
+                To = 1.2,
+                Duration = TimeSpan.FromSeconds(0.8),
+                AutoReverse = true,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            };
+            Storyboard.SetTarget(scaleYAnim, TouchPointScale);
+            Storyboard.SetTargetProperty(scaleYAnim, new PropertyPath(ScaleTransform.ScaleYProperty));
+
+            _pulseAnimation.Children.Add(scaleXAnim);
+            _pulseAnimation.Children.Add(scaleYAnim);
+        }
+
+        /// <summary>
+        /// 觸控板偵測事件處理（用於初始化視覺化）
+        /// </summary>
+        private void OnTouchpadDetectedForVisualization(object? sender, TouchpadInfo e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                UpdateScrollZoneVisualization();
+            });
+        }
+
+        /// <summary>
+        /// 觸控板輸入事件處理（用於視覺化）
+        /// </summary>
+        private void OnTouchpadInputForVisualization(object? sender, TouchpadInputEventArgs e)
+        {
+            if (!_viewModel?.Settings.ShowTouchVisualization ?? true)
+                return;
+
+            Dispatcher.Invoke(() =>
+            {
+                var touchpadInfo = e.TouchpadInfo;
+                var contacts = e.Contacts.Where(c => c.IsTouching && c.Confidence).ToList();
+
+                TouchCountText.Text = contacts.Count.ToString();
+
+                if (contacts.Count > 0)
+                {
+                    var contact = contacts[0]; // 使用第一個觸控點
+
+                    // 計算相對位置 (0-1)
+                    double relativeX = (double)(contact.X - touchpadInfo.LogicalMinX) / touchpadInfo.Width;
+                    double relativeY = (double)(contact.Y - touchpadInfo.LogicalMinY) / touchpadInfo.Height;
+
+                    // 映射到畫布座標
+                    double canvasX = relativeX * TouchpadCanvas.ActualWidth;
+                    double canvasY = relativeY * TouchpadCanvas.ActualHeight;
+
+                    // 更新觸控點位置
+                    Canvas.SetLeft(TouchPoint, canvasX - TouchPoint.Width / 2);
+                    Canvas.SetTop(TouchPoint, canvasY - TouchPoint.Height / 2);
+
+                    if (TouchPoint.Visibility != Visibility.Visible)
+                    {
+                        TouchPoint.Visibility = Visibility.Visible;
+                        HintText.Visibility = Visibility.Collapsed;
+                        _pulseAnimation?.Begin();
+                    }
+
+                    // 更新位置文字
+                    TouchPositionText.Text = $"{relativeX * 100:F1}%, {relativeY * 100:F1}%";
+
+                    // 更新觸控軌跡
+                    _trailPoints.Add(new Point(canvasX, canvasY));
+                    if (_trailPoints.Count > MaxTrailPoints)
+                    {
+                        _trailPoints.RemoveAt(0);
+                    }
+
+                    TouchTrail.Points = new PointCollection(_trailPoints);
+                }
+                else
+                {
+                    // 沒有觸控點時隱藏
+                    TouchPoint.Visibility = Visibility.Collapsed;
+                    HintText.Visibility = Visibility.Visible;
+                    TouchPositionText.Text = "—";
+                    _pulseAnimation?.Stop();
+                    _trailPoints.Clear();
+                    TouchTrail.Points.Clear();
+                }
+            });
+        }
+
+        /// <summary>
+        /// 進入捲動區事件處理
+        /// </summary>
+        private void OnEnterScrollZone(object? sender, ScrollZoneEventArgs e)
+        {
+            if (!_viewModel?.Settings.ShowTouchVisualization ?? true)
+                return;
+
+            Dispatcher.Invoke(() =>
+            {
+                ScrollStateText.Text = "捲動中";
+                ScrollStateText.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // 綠色
+
+                // 高亮捲動區
+                var fadeIn = new DoubleAnimation
+                {
+                    To = 0.9,
+                    Duration = TimeSpan.FromSeconds(0.2)
+                };
+                ScrollZoneRect.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+            });
+        }
+
+        /// <summary>
+        /// 離開捲動區事件處理
+        /// </summary>
+        private void OnExitScrollZone(object? sender, EventArgs e)
+        {
+            if (!_viewModel?.Settings.ShowTouchVisualization ?? true)
+                return;
+
+            Dispatcher.Invoke(() =>
+            {
+                ScrollStateText.Text = "待機中";
+                ScrollStateText.Foreground = SystemColors.ControlTextBrush;
+
+                // 還原捲動區透明度
+                var fadeOut = new DoubleAnimation
+                {
+                    To = 0.6,
+                    Duration = TimeSpan.FromSeconds(0.3)
+                };
+                ScrollZoneRect.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+            });
+        }
+
+        /// <summary>
+        /// 更新捲動區視覺化
+        /// </summary>
+        private void UpdateScrollZoneVisualization()
+        {
+            if (_viewModel == null)
+                return;
+
+            var rawInputManager = App.GetService<RawInputManager>();
+            var touchpadInfo = rawInputManager.ActiveTouchpad;
+
+            if (touchpadInfo == null || !touchpadInfo.IsInitialized)
+                return;
+
+            var settings = _viewModel.Settings;
+            double zoneWidthPercent = settings.ScrollZoneWidth / 100.0;
+            double canvasWidth = TouchpadCanvas.ActualWidth;
+
+            if (canvasWidth == 0)
+                canvasWidth = 400; // 預設寬度
+
+            double zoneWidth = canvasWidth * zoneWidthPercent;
+            double zoneHeight = TouchpadCanvas.ActualHeight > 0 ? TouchpadCanvas.ActualHeight : 200;
+
+            ScrollZoneRect.Width = zoneWidth;
+            ScrollZoneRect.Height = zoneHeight;
+
+            if (settings.ScrollZonePosition == ScrollZonePosition.Right)
+            {
+                Canvas.SetLeft(ScrollZoneRect, canvasWidth - zoneWidth);
+            }
+            else
+            {
+                Canvas.SetLeft(ScrollZoneRect, 0);
+            }
+
+            Canvas.SetTop(ScrollZoneRect, 0);
+        }
+
+        /// <summary>
+        /// 畫布大小變更時更新視覺化
+        /// </summary>
+        private void TouchpadCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            UpdateScrollZoneVisualization();
+        }
+
+        #endregion
     }
 
     #region Value Converters

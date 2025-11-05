@@ -58,6 +58,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -95,8 +96,131 @@
             </Grid>
         </Border>
 
+        <!-- 觸控板預覽區 -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1"
+                Padding="20,16"
+                Visibility="{Binding Settings.ShowTouchVisualization, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="觸控板即時預覽"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,12"/>
+
+                <!-- 觸控板視覺化畫布 -->
+                <Border Background="#1A000000"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                        BorderThickness="2"
+                        CornerRadius="12"
+                        Height="200"
+                        HorizontalAlignment="Center"
+                        Width="400">
+                    <Canvas x:Name="TouchpadCanvas"
+                            ClipToBounds="True"
+                            SizeChanged="TouchpadCanvas_SizeChanged">
+
+                        <!-- 捲動區高亮 -->
+                        <Rectangle x:Name="ScrollZoneRect"
+                                   Fill="#30FFFFFF"
+                                   Stroke="#60FFFFFF"
+                                   StrokeThickness="2"
+                                   RadiusX="8"
+                                   RadiusY="8"
+                                   Opacity="0.6">
+                            <Rectangle.Effect>
+                                <BlurEffect Radius="2"/>
+                            </Rectangle.Effect>
+                        </Rectangle>
+
+                        <!-- 觸控點指示器 -->
+                        <Ellipse x:Name="TouchPoint"
+                                 Width="40"
+                                 Height="40"
+                                 Fill="#DD4444"
+                                 Stroke="#FF6666"
+                                 StrokeThickness="3"
+                                 Visibility="Collapsed"
+                                 RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <ScaleTransform x:Name="TouchPointScale" ScaleX="1" ScaleY="1"/>
+                            </Ellipse.RenderTransform>
+                            <Ellipse.Effect>
+                                <DropShadowEffect Color="#FF4444"
+                                                BlurRadius="20"
+                                                ShadowDepth="0"
+                                                Opacity="0.8"/>
+                            </Ellipse.Effect>
+                        </Ellipse>
+
+                        <!-- 觸控軌跡線 -->
+                        <Polyline x:Name="TouchTrail"
+                                  Stroke="#80FF4444"
+                                  StrokeThickness="3"
+                                  StrokeLineJoin="Round"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Opacity="0.7"/>
+
+                        <!-- 中央提示文字 -->
+                        <TextBlock x:Name="HintText"
+                                   Text="在觸控板上滑動以查看即時預覽"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Canvas.Left="200"
+                                   Canvas.Top="90"
+                                   RenderTransformOrigin="0.5,0.5">
+                            <TextBlock.RenderTransform>
+                                <TranslateTransform X="-100"/>
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                    </Canvas>
+                </Border>
+
+                <!-- 狀態資訊 -->
+                <Grid Margin="0,12,0,0" HorizontalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <TextBlock Text="觸控點: " FontSize="12" Opacity="0.7"/>
+                        <TextBlock x:Name="TouchCountText" Text="0" FontSize="12" FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <TextBlock Text="位置: " FontSize="12" Opacity="0.7"/>
+                        <TextBlock x:Name="TouchPositionText" Text="—" FontSize="12" FontFamily="Consolas" FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="4" Orientation="Horizontal">
+                        <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,6,0">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#9E9E9E"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ElementName=TouchPoint, Path=Visibility}" Value="Visible">
+                                            <Setter Property="Fill" Value="#4CAF50"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock x:Name="ScrollStateText" Text="待機中" FontSize="12" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <!-- 主內容區 -->
-        <ScrollViewer Grid.Row="1"
+        <ScrollViewer Grid.Row="2"
                       VerticalScrollBarVisibility="Auto"
                       Padding="20">
             <StackPanel MaxWidth="800">
@@ -317,6 +441,9 @@
 
                 <Border Style="{StaticResource SettingItemStyle}">
                     <StackPanel>
+                        <CheckBox Content="顯示觸控板即時預覽"
+                                  IsChecked="{Binding Settings.ShowTouchVisualization, Mode=TwoWay}"
+                                  Margin="0,0,0,8"/>
                         <CheckBox Content="開機自動啟動"
                                   IsChecked="{Binding Settings.StartWithWindows, Mode=TwoWay}"
                                   Margin="0,0,0,8"/>
