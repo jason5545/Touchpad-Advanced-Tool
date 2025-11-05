@@ -19,6 +19,8 @@ namespace TouchpadSideScroll.Models
         private bool _debugMode = false;
         private bool _invertScrollDirection = false;
         private bool _enableHorizontalScroll = false;
+        private bool _invertHorizontalScroll = false;
+
         private int _minimumContactsForScroll = 1;
         private int _maximumContactsForScroll = 1;
 
@@ -116,6 +118,15 @@ namespace TouchpadSideScroll.Models
         {
             get => _invertScrollDirection;
             set => SetProperty(ref _invertScrollDirection, value);
+        }
+
+        /// <summary>
+        /// 反轉水平捲動方向
+        /// </summary>
+        public bool InvertHorizontalScroll
+        {
+            get => _invertHorizontalScroll;
+            set => SetProperty(ref _invertHorizontalScroll, value);
         }
 
         /// <summary>

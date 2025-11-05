@@ -105,6 +105,24 @@ namespace TouchpadSideScroll
         /// </summary>
         protected override void OnExit(ExitEventArgs e)
         {
+            try
+            {
+                var hook = _serviceProvider?.GetService<MouseHookManager>();
+                hook?.UninstallHook();
+
+                var raw = _serviceProvider?.GetService<RawInputManager>();
+                raw?.Unregister();
+
+                if (_serviceProvider is IDisposable d)
+                {
+                    d.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "應用程式關閉時清理失敗");
+            }
+
             Log.Information("應用程式關閉");
             Log.CloseAndFlush();
 

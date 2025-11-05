@@ -13,10 +13,10 @@ namespace TouchpadSideScroll.Core
     public class ScrollConverter
     {
         private readonly ILogger<ScrollConverter> _logger;
-        private int _accumulatedDeltaY;
-        private int _accumulatedDeltaX;
+        private double _accumulatedDeltaY;
+        private double _accumulatedDeltaX;
         private DateTime _lastScrollTime;
-        private const int MinScrollThreshold = 5; // 最小捲動閾值（觸控板單位）
+        private const double MinScrollThreshold = 5.0; // 最小捲動閾值（觸控板原始單位）
 
         public ScrollConverter(ILogger<ScrollConverter> logger)
         {
@@ -30,46 +30,43 @@ namespace TouchpadSideScroll.Core
         {
             try
             {
-                // 累積移動距離
+                // 累積移動距離（支援反向設定）
                 int deltaY = settings.InvertScrollDirection ? -args.DeltaY : args.DeltaY;
-                int deltaX = args.DeltaX;
+                int deltaX = settings.InvertHorizontalScroll ? -args.DeltaX : args.DeltaX;
 
                 _accumulatedDeltaY += deltaY;
-
                 if (settings.EnableHorizontalScroll)
                 {
                     _accumulatedDeltaX += deltaX;
                 }
 
-                // 計算觸控板座標到滾輪單位的轉換比例
-                // 假設觸控板高度約為 6000 單位，移動 50 單位 = 1 個滾輪增量 (120 單位)
-                double scaleFactor = CalculateScaleFactor(args.TouchpadInfo, settings);
+                // 計算每個 detent 需要的原始單位數
+                double rawPerDetent = ComputeRawUnitsPerDetent(args.TouchpadInfo, settings);
+                // 門檻：取 detent 的 1/4 或固定最小門檻較大值，避免過度敏感
+                double minThreshold = Math.Max(MinScrollThreshold, rawPerDetent * 0.25);
 
-                // 檢查是否累積足夠的移動距離來觸發捲動
                 int scrollUnitsY = 0;
                 int scrollUnitsX = 0;
 
-                if (Math.Abs(_accumulatedDeltaY) >= MinScrollThreshold)
+                if (Math.Abs(_accumulatedDeltaY) >= minThreshold)
                 {
-                    // 計算滾輪單位數
-                    double scrollAmount = _accumulatedDeltaY * scaleFactor * settings.ScrollSpeed * settings.ScrollSensitivity;
-                    scrollUnitsY = (int)(scrollAmount / WHEEL_DELTA);
-
+                    scrollUnitsY = (int)(_accumulatedDeltaY / rawPerDetent);
                     if (scrollUnitsY != 0)
                     {
-                        // 重置累積值（保留餘數）
-                        _accumulatedDeltaY -= (int)(scrollUnitsY * WHEEL_DELTA / (scaleFactor * settings.ScrollSpeed * settings.ScrollSensitivity));
+                        _accumulatedDeltaY -= scrollUnitsY * rawPerDetent; // 保留餘數
+                        if (settings.DebugMode)
+                            _logger.LogDebug("垂直: 累積={Accum:F2}, detentRaw={Detent:F2}, 注入={Units}", _accumulatedDeltaY, rawPerDetent, scrollUnitsY);
                     }
                 }
 
-                if (settings.EnableHorizontalScroll && Math.Abs(_accumulatedDeltaX) >= MinScrollThreshold)
+                if (settings.EnableHorizontalScroll && Math.Abs(_accumulatedDeltaX) >= minThreshold)
                 {
-                    double scrollAmount = _accumulatedDeltaX * scaleFactor * settings.ScrollSpeed * settings.ScrollSensitivity;
-                    scrollUnitsX = (int)(scrollAmount / WHEEL_DELTA);
-
+                    scrollUnitsX = (int)(_accumulatedDeltaX / rawPerDetent);
                     if (scrollUnitsX != 0)
                     {
-                        _accumulatedDeltaX -= (int)(scrollUnitsX * WHEEL_DELTA / (scaleFactor * settings.ScrollSpeed * settings.ScrollSensitivity));
+                        _accumulatedDeltaX -= scrollUnitsX * rawPerDetent;
+                        if (settings.DebugMode)
+                            _logger.LogDebug("水平: 累積={Accum:F2}, detentRaw={Detent:F2}, 注入={Units}", _accumulatedDeltaX, rawPerDetent, scrollUnitsX);
                     }
                 }
 
@@ -89,23 +86,25 @@ namespace TouchpadSideScroll.Core
         /// <summary>
         /// 計算縮放係數
         /// </summary>
-        private double CalculateScaleFactor(TouchpadInfo touchpadInfo, TouchpadSettings settings)
+        private static double ComputeRawUnitsPerDetent(TouchpadInfo touchpadInfo, TouchpadSettings settings)
         {
-            // 根據觸控板高度計算基礎縮放係數
-            // 假設標準觸控板高度為 6000 單位，移動 40 單位產生 1 個滾輪增量
+            // 標準條件：觸控板高度約 6000 單位；每 40 原始單位 ≈ 1 個 detent (WHEEL_DELTA)
             const double standardHeight = 6000.0;
-            const double standardPixelsPerWheelDelta = 40.0;
+            const double baseRawUnitsPerDetent = 40.0;
 
-            double touchpadHeight = touchpadInfo.Height;
-            double scaleFactor = standardPixelsPerWheelDelta / standardHeight;
+            double height = (touchpadInfo != null && touchpadInfo.IsInitialized) ? touchpadInfo.Height : standardHeight;
+            if (height <= 0) height = standardHeight;
 
-            // 根據實際觸控板大小調整
-            if (touchpadHeight > 0)
-            {
-                scaleFactor *= standardHeight / touchpadHeight;
-            }
+            // 依實際高度等比縮放；速度與靈敏度越高，所需原始單位越少
+            double rawUnits = baseRawUnitsPerDetent * (height / standardHeight);
+            double speed = settings.ScrollSpeed;
+            double sensitivity = settings.ScrollSensitivity;
+            if (speed < 0.01) speed = 0.01;
+            if (sensitivity < 0.01) sensitivity = 0.01;
 
-            return scaleFactor;
+            rawUnits /= (speed * sensitivity);
+            if (rawUnits < 1.0) rawUnits = 1.0;
+            return rawUnits;
         }
 
         /// <summary>
@@ -186,8 +185,8 @@ namespace TouchpadSideScroll.Core
         /// </summary>
         public void Reset()
         {
-            _accumulatedDeltaY = 0;
-            _accumulatedDeltaX = 0;
+            _accumulatedDeltaY = 0.0;
+            _accumulatedDeltaX = 0.0;
         }
     }
 }
