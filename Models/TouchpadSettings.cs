@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace TouchpadSideScroll.Models
+namespace TouchpadAdvancedTool.Models
 {
     /// <summary>
     /// 觸控板設定

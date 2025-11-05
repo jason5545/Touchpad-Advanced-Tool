@@ -1,11 +1,11 @@
 using System;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
-using TouchpadSideScroll.Models;
-using TouchpadSideScroll.Native;
-using static TouchpadSideScroll.Native.NativeMethods;
+using TouchpadAdvancedTool.Models;
+using TouchpadAdvancedTool.Native;
+using static TouchpadAdvancedTool.Native.NativeMethods;
 
-namespace TouchpadSideScroll.Core
+namespace TouchpadAdvancedTool.Core
 {
     /// <summary>
     /// 捲動轉換器 - 將觸控板移動轉換為滾輪事件

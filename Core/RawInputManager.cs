@@ -4,11 +4,11 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Extensions.Logging;
-using TouchpadSideScroll.Models;
-using TouchpadSideScroll.Native;
-using static TouchpadSideScroll.Native.NativeMethods;
+using TouchpadAdvancedTool.Models;
+using TouchpadAdvancedTool.Native;
+using static TouchpadAdvancedTool.Native.NativeMethods;
 
-namespace TouchpadSideScroll.Core
+namespace TouchpadAdvancedTool.Core
 {
     /// <summary>
     /// Raw Input 管理器 - 負責接收和解析觸控板原始輸入

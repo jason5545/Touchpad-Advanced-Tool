@@ -2,10 +2,10 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
-using TouchpadSideScroll.Native;
-using static TouchpadSideScroll.Native.NativeMethods;
+using TouchpadAdvancedTool.Native;
+using static TouchpadAdvancedTool.Native.NativeMethods;
 
-namespace TouchpadSideScroll.Core
+namespace TouchpadAdvancedTool.Core
 {
     /// <summary>
     /// 滑鼠鉤子管理器 - 負責攔截滑鼠移動事件

@@ -1,6 +1,6 @@
-# Touchpad 側邊捲動 (Touchpad Side Scroll)
+# Touchpad Advanced Tool
 
-一個使用 Windows Precision Touchpad API 實作的觸控板側邊捲動工具，讓您可以在觸控板的邊緣區域垂直滑動來捲動頁面，就像 MacOS 的側邊捲動功能一樣。
+一個使用 Windows Precision Touchpad API 實作的觸控板進階工具，提供側邊捲動等多種觸控板增強功能，讓您可以在觸控板的邊緣區域垂直滑動來捲動頁面，就像 MacOS 的側邊捲動功能一樣。
 
 ## 功能特色
 
@@ -27,7 +27,7 @@
    cd Touchpad-sidescroll
    ```
 
-2. 使用 Visual Studio 2022 或更新版本開啟 `TouchpadSideScroll.csproj`
+2. 使用 Visual Studio 2022 或更新版本開啟 `TouchpadAdvancedTool.csproj`
 
 3. 建置專案（需要 .NET 8.0 SDK）：
    ```bash
@@ -38,7 +38,7 @@
    ```bash
    cd bin/Release/net8.0-windows
    # 以管理員身分執行
-   .\TouchpadSideScroll.exe
+   .\TouchpadAdvancedTool.exe
    ```
 
 ### 使用說明
@@ -74,7 +74,7 @@
 ### 專案結構
 
 ```
-TouchpadSideScroll/
+TouchpadAdvancedTool/
 ├── Native/                     # P/Invoke 宣告和結構定義
 │   ├── NativeMethods.cs        # Windows API 宣告
 │   └── Structures.cs           # 原生結構定義

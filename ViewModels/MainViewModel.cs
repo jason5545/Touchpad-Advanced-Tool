@@ -4,11 +4,11 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
-using TouchpadSideScroll.Core;
-using TouchpadSideScroll.Models;
-using TouchpadSideScroll.Services;
+using TouchpadAdvancedTool.Core;
+using TouchpadAdvancedTool.Models;
+using TouchpadAdvancedTool.Services;
 
-namespace TouchpadSideScroll.ViewModels
+namespace TouchpadAdvancedTool.ViewModels
 {
     /// <summary>
     /// 主視窗 ViewModel

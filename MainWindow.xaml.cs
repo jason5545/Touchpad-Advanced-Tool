@@ -4,17 +4,18 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using TouchpadSideScroll.Core;
-using TouchpadSideScroll.Models;
-using TouchpadSideScroll.ViewModels;
+using TouchpadAdvancedTool.Core;
+using TouchpadAdvancedTool.Models;
+using TouchpadAdvancedTool.ViewModels;
 
-namespace TouchpadSideScroll
+namespace TouchpadAdvancedTool
 {
     /// <summary>
     /// 主視窗

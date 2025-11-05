@@ -12,7 +12,8 @@
       "Bash(dotnet restore:*)",
       "Bash(dotnet build:*)",
       "Bash(tee:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

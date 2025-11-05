@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace TouchpadSideScroll.Native
+namespace TouchpadAdvancedTool.Native
 {
     /// <summary>
     /// Windows API P/Invoke 宣告

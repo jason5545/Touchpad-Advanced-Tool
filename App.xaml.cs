@@ -4,11 +4,11 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using TouchpadSideScroll.Core;
-using TouchpadSideScroll.Services;
-using TouchpadSideScroll.ViewModels;
+using TouchpadAdvancedTool.Core;
+using TouchpadAdvancedTool.Services;
+using TouchpadAdvancedTool.ViewModels;
 
-namespace TouchpadSideScroll
+namespace TouchpadAdvancedTool
 {
     /// <summary>
     /// 應用程式主類別
@@ -24,14 +24,14 @@ namespace TouchpadSideScroll
         protected override void OnStartup(StartupEventArgs e)
         {
             // 檢查是否已有執行個體在執行（單一執行個體）
-            const string mutexName = "TouchpadSideScroll_SingleInstance_Mutex";
+            const string mutexName = "TouchpadAdvancedTool_SingleInstance_Mutex";
             _mutex = new Mutex(true, mutexName, out bool createdNew);
 
             if (!createdNew)
             {
                 MessageBox.Show(
-                    "觸控板側邊捲動已在執行中。",
-                    "TouchpadSideScroll",
+                    "Touchpad Advanced Tool 已在執行中。",
+                    "Touchpad Advanced Tool",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 Shutdown();
@@ -44,7 +44,7 @@ namespace TouchpadSideScroll
                 .WriteTo.File(
                     path: System.IO.Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "TouchpadSideScroll",
+                        "TouchpadAdvancedTool",
                         "logs",
                         "log-.txt"),
                     rollingInterval: RollingInterval.Day,

@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
-using TouchpadSideScroll.Models;
+using TouchpadAdvancedTool.Models;
 
-namespace TouchpadSideScroll.Core
+namespace TouchpadAdvancedTool.Core
 {
     /// <summary>
     /// 觸控板追蹤器 - 負責追蹤觸控板狀態並判斷觸控位置

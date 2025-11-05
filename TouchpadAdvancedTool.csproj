@@ -6,8 +6,8 @@
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <AssemblyName>TouchpadSideScroll</AssemblyName>
-    <RootNamespace>TouchpadSideScroll</RootNamespace>
+    <AssemblyName>TouchpadAdvancedTool</AssemblyName>
+    <RootNamespace>TouchpadAdvancedTool</RootNamespace>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>

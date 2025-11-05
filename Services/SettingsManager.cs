@@ -4,9 +4,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
-using TouchpadSideScroll.Models;
+using TouchpadAdvancedTool.Models;
 
-namespace TouchpadSideScroll.Services
+namespace TouchpadAdvancedTool.Services
 {
     /// <summary>
     /// 設定管理器 - 負責載入、儲存和管理應用程式設定
@@ -16,7 +16,7 @@ namespace TouchpadSideScroll.Services
         private readonly ILogger<SettingsManager> _logger;
         private readonly string _settingsPath;
         private const string RegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-        private const string AppName = "TouchpadSideScroll";
+        private const string AppName = "TouchpadAdvancedTool";
 
         private TouchpadSettings _settings;
 
@@ -34,7 +34,7 @@ namespace TouchpadSideScroll.Services
         {
             _logger = logger;
 
-            // 設定檔路徑：%LocalAppData%\TouchpadSideScroll\settings.json
+            // 設定檔路徑：%LocalAppData%\TouchpadAdvancedTool\settings.json
             var appDataPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 AppName);
