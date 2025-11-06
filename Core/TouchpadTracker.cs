@@ -23,7 +23,8 @@ namespace TouchpadAdvancedTool.Core
         {
             None,           // 無手勢
             CornerTap,      // 角落觸擊進行中
-            Scrolling       // 捲動進行中
+            Scrolling,      // 捲動進行中
+            NormalCursor    // 已離開區域，恢復為一般游標
         }
         private GestureState _currentGestureState = GestureState.None;
         private uint _gestureContactId = 0; // 觸發手勢的觸點 ID
@@ -182,7 +183,7 @@ namespace TouchpadAdvancedTool.Core
             // 2. 如果已經在角落觸擊狀態中
             if (_currentGestureState == GestureState.CornerTap)
             {
-                // 檢查是否移動過多，如果是則轉換為捲動狀態
+                // 檢查是否移動過多，如果是則轉換為捲動狀態或一般游標狀態
                 if (_gestureRecognizer != null &&
                     !_gestureRecognizer.IsActiveCornerTap(_gestureContactId))
                 {
@@ -211,9 +212,10 @@ namespace TouchpadAdvancedTool.Core
                     }
                     else
                     {
-                        // 不在捲動區，重置狀態
-                        _currentGestureState = GestureState.None;
+                        // 不在捲動區，轉換為一般游標狀態
+                        _currentGestureState = GestureState.NormalCursor;
                         _gestureContactId = 0;
+                        _logger.LogDebug($"離開角落區域，轉換為一般游標模式");
                     }
                 }
                 return; // 在角落觸擊狀態中，不處理捲動
@@ -225,6 +227,12 @@ namespace TouchpadAdvancedTool.Core
 
             if (inScrollZone)
             {
+                // 如果已經在 NormalCursor 狀態，不允許再次進入捲動
+                if (_currentGestureState == GestureState.NormalCursor)
+                {
+                    return;
+                }
+
                 // 檢查是否在角落區域（如果啟用角落觸擊，則排除角落區域）
                 if (settings.EnableCornerTap && IsInCornerZone(_primaryContact, settings))
                 {
@@ -267,12 +275,19 @@ namespace TouchpadAdvancedTool.Core
             }
             else
             {
+                // 離開捲動區
                 if (IsInScrollZone)
                 {
-                    // 離開捲動區
                     IsInScrollZone = false;
                     CurrentScrollZoneType = ScrollZoneType.None;
                     ExitScrollZone?.Invoke(this, EventArgs.Empty);
+                }
+
+                // 如果之前在捲動狀態，現在離開區域，轉換為一般游標狀態
+                if (_currentGestureState == GestureState.Scrolling)
+                {
+                    _currentGestureState = GestureState.NormalCursor;
+                    _logger.LogDebug($"離開捲動區，轉換為一般游標模式");
                 }
             }
         }
