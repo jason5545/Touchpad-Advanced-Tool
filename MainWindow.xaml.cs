@@ -340,10 +340,7 @@ namespace TouchpadAdvancedTool
 
             Dispatcher.Invoke(() =>
             {
-                ScrollStateText.Text = "準備中";
-                ScrollStateText.Foreground = new SolidColorBrush(Color.FromRgb(255, 152, 0)); // 橘色
-
-                // 高亮捲動區
+                // 高亮捲動區（不改變狀態文字，只有真正捲動時才顯示「捲動中」）
                 var fadeIn = new DoubleAnimation
                 {
                     To = 0.9,
