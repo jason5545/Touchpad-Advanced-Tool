@@ -215,6 +215,15 @@ namespace TouchpadAdvancedTool.Core
                         // 不在捲動區，轉換為一般游標狀態
                         _currentGestureState = GestureState.NormalCursor;
                         _gestureContactId = 0;
+
+                        // 確保狀態一致（防止 IsInScrollZone 殘留導致游標被攔截）
+                        if (IsInScrollZone)
+                        {
+                            IsInScrollZone = false;
+                            CurrentScrollZoneType = ScrollZoneType.None;
+                            ExitScrollZone?.Invoke(this, EventArgs.Empty);
+                        }
+
                         _logger.LogDebug($"離開角落區域，轉換為一般游標模式");
                     }
                 }
@@ -225,6 +234,13 @@ namespace TouchpadAdvancedTool.Core
             // 快速路徑：如果已經在 NormalCursor 狀態，直接返回，不需要進行區域判斷
             if (_currentGestureState == GestureState.NormalCursor)
             {
+                // 確保離開捲動區狀態（防止狀態不一致導致游標被攔截）
+                if (IsInScrollZone)
+                {
+                    IsInScrollZone = false;
+                    CurrentScrollZoneType = ScrollZoneType.None;
+                    ExitScrollZone?.Invoke(this, EventArgs.Empty);
+                }
                 return;
             }
 
@@ -284,11 +300,13 @@ namespace TouchpadAdvancedTool.Core
                     ExitScrollZone?.Invoke(this, EventArgs.Empty);
                 }
 
-                // 如果之前在捲動狀態，現在離開區域，轉換為一般游標狀態
-                if (_currentGestureState == GestureState.Scrolling)
+                // 在非捲動區時，轉換為一般游標狀態
+                // 這確保了從非捲動區進入捲動區時不會觸發捲動（只有從 None 進入才會觸發）
+                if (_currentGestureState == GestureState.None ||
+                    _currentGestureState == GestureState.Scrolling)
                 {
                     _currentGestureState = GestureState.NormalCursor;
-                    _logger.LogDebug($"離開捲動區，轉換為一般游標模式");
+                    _logger.LogDebug($"在非捲動區，設置為一般游標模式");
                 }
             }
         }
