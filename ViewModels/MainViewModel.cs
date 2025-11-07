@@ -383,11 +383,11 @@ namespace TouchpadAdvancedTool.ViewModels
             }
             else if (Settings.IsEnabled)
             {
-                StatusText = "執行中 - 側邊捲動已啟用";
+                StatusText = "執行中 - 增強功能已啟用";
             }
             else
             {
-                StatusText = "執行中 - 側邊捲動已停用";
+                StatusText = "執行中 - 增強功能已停用";
             }
         }
 

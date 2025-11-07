@@ -185,7 +185,7 @@
 
                         <!-- 中央提示文字 -->
                         <TextBlock x:Name="HintText"
-                                   Text="在觸控板上滑動以查看即時預覽"
+                                   Text="在觸控板上滑動以檢視即時預覽"
                                    FontSize="13"
                                    Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
                                    HorizontalAlignment="Center"
