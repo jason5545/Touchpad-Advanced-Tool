@@ -50,6 +50,12 @@ namespace TouchpadAdvancedTool
                 _viewModel = App.GetService<MainViewModel>();
                 DataContext = _viewModel;
 
+                // 設定 NotifyIcon 的 DataContext 以使系統匣選單的繫結正常運作
+                if (_notifyIcon != null)
+                {
+                    _notifyIcon.DataContext = _viewModel;
+                }
+
                 // 加入視窗訊息鉤子以接收 WM_INPUT
                 var windowHandle = new WindowInteropHelper(this).Handle;
                 _hwndSource = HwndSource.FromHwnd(windowHandle);
