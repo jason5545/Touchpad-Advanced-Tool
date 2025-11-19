@@ -160,7 +160,7 @@ namespace TouchpadAdvancedTool.Services
         }
 
         /// <summary>
-        /// 取得執行檔路徑（優先使用 Release 版本）
+        /// 取得執行檔路徑
         /// </summary>
         /// <returns>執行檔路徑</returns>
         private string? GetExecutablePath()
@@ -168,28 +168,7 @@ namespace TouchpadAdvancedTool.Services
             try
             {
                 // 取得當前執行檔路徑
-                var currentExePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-
-                if (string.IsNullOrEmpty(currentExePath))
-                    return null;
-
-                // 如果當前是 Debug 版本，嘗試找到 Release 版本
-                if (currentExePath.Contains(@"\Debug\", StringComparison.OrdinalIgnoreCase))
-                {
-                    var releaseExePath = currentExePath.Replace(@"\Debug\", @"\Release\", StringComparison.OrdinalIgnoreCase);
-
-                    if (File.Exists(releaseExePath))
-                    {
-                        _logger.LogInformation("偵測到 Debug 版本，使用 Release 版本路徑：{Path}", releaseExePath);
-                        return releaseExePath;
-                    }
-                    else
-                    {
-                        _logger.LogWarning("找不到 Release 版本，使用當前路徑：{Path}", currentExePath);
-                    }
-                }
-
-                return currentExePath;
+                return System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
             }
             catch (Exception ex)
             {
