@@ -3,7 +3,6 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 using TouchpadAdvancedTool.Models;
 
 namespace TouchpadAdvancedTool.Services
@@ -46,7 +45,7 @@ namespace TouchpadAdvancedTool.Services
             // 載入或建立預設設定
             _settings = LoadSettings();
 
-            // 同步開機啟動狀態：檢查 Registry 實際狀態並更新設定
+            // 同步開機啟動狀態：檢查實際啟動設定並更新設定
             SyncStartupState();
 
             // 訂閱設定變更事件
@@ -58,7 +57,7 @@ namespace TouchpadAdvancedTool.Services
                 // 處理特殊設定
                 if (e.PropertyName == nameof(TouchpadSettings.StartWithWindows))
                 {
-                    UpdateStartupRegistry(_settings.StartWithWindows);
+                    UpdateStartupConfiguration(_settings.StartWithWindows);
                 }
 
                 // 觸發設定變更事件
@@ -175,21 +174,21 @@ namespace TouchpadAdvancedTool.Services
         {
             try
             {
-                bool registryEnabled = _startupManager.IsStartupEnabled();
+                bool startupEnabled = _startupManager.IsStartupEnabled();
 
-                // 如果 Registry 狀態與設定不一致，以 Registry 為準
-                if (registryEnabled != _settings.StartWithWindows)
+                // 如果系統啟動狀態與設定不一致，以系統狀態為準
+                if (startupEnabled != _settings.StartWithWindows)
                 {
-                    _logger.LogInformation("同步開機啟動狀態：Registry={RegistryState}, Settings={SettingsState}, 以 Registry 為準",
-                        registryEnabled, _settings.StartWithWindows);
+                    _logger.LogInformation("同步開機啟動狀態：System={SystemState}, Settings={SettingsState}, 以系統狀態為準",
+                        startupEnabled, _settings.StartWithWindows);
 
-                    // 暫時取消訂閱以避免觸發 UpdateStartupRegistry
-                    _settings.StartWithWindows = registryEnabled;
+                    // 以系統實際啟動狀態更新設定，避免不一致
+                    _settings.StartWithWindows = startupEnabled;
                     SaveSettings();
                 }
 
                 // 驗證啟動項目是否有效
-                if (registryEnabled && !_startupManager.ValidateStartupEntry())
+                if (startupEnabled && !_startupManager.ValidateStartupEntry())
                 {
                     _logger.LogWarning("開機啟動項目無效，正在更新...");
                     _startupManager.EnableStartup(silentStart: true);
@@ -202,9 +201,9 @@ namespace TouchpadAdvancedTool.Services
         }
 
         /// <summary>
-        /// 更新開機自動啟動註冊表項目
+        /// 更新開機自動啟動設定（例如 Task Scheduler 排程工作）
         /// </summary>
-        private void UpdateStartupRegistry(bool enable)
+        private void UpdateStartupConfiguration(bool enable)
         {
             bool success;
 
