@@ -131,7 +131,17 @@ namespace TouchpadAdvancedTool.Core
             if (_activeContacts.Count < settings.MinimumContactsForScroll ||
                 _activeContacts.Count > settings.MaximumContactsForScroll)
             {
-                // 觸控點數量不符，退出捲動模式
+                // 如果觸控點數量不符（例如多指或無指），且正在手勢中，必須重置狀態
+                // 否則 aggressive blocking 會導致游標卡住
+                if (_currentGestureState == GestureState.Scrolling || 
+                    _currentGestureState == GestureState.CornerTap)
+                {
+                    _logger.LogDebug($"觸控點數量不符 ({_activeContacts.Count})，重置手勢狀態：{_currentGestureState} -> NormalCursor");
+                    _currentGestureState = GestureState.NormalCursor;
+                    _gestureContactId = 0;
+                }
+
+                // 觸控板數量不符，退出捲動模式
                 if (IsInScrollZone)
                 {
                     IsInScrollZone = false;
@@ -142,8 +152,22 @@ namespace TouchpadAdvancedTool.Core
 
             // 取得主要觸控點（第一個有效觸控點）
             // 優先選擇高信心的觸控點，但如果沒有，且觸控點在捲動區內，則使用低信心觸控點
-            var highConfidenceContact = _activeContacts.Values.FirstOrDefault(c => c.IsTouching && c.Confidence);
-            var anyTouchingContact = _activeContacts.Values.FirstOrDefault(c => c.IsTouching);
+            // 優化：單次遍歷完成查找，減少字典遍歷次數
+            ContactInfo? highConfidenceContact = null;
+            ContactInfo? anyTouchingContact = null;
+
+            foreach (var contact in _activeContacts.Values)
+            {
+                if (contact.IsTouching)
+                {
+                    anyTouchingContact ??= contact;
+                    if (contact.Confidence)
+                    {
+                        highConfidenceContact = contact;
+                        break; // 找到高信心觸點就可以停止
+                    }
+                }
+            }
 
             // 如果有高信心觸控點，使用它
             if (highConfidenceContact != null)
@@ -167,6 +191,16 @@ namespace TouchpadAdvancedTool.Core
 
             if (_primaryContact == null)
             {
+                // 如果主要觸控點遺失（例如變為低信心），但仍在捲動或角落觸擊狀態
+                // 強制轉換為一般游標狀態，以免游標被鎖住
+                if (_currentGestureState == GestureState.Scrolling || 
+                    _currentGestureState == GestureState.CornerTap)
+                {
+                    _logger.LogDebug($"主要觸控點遺失，重置手勢狀態：{_currentGestureState} -> NormalCursor");
+                    _currentGestureState = GestureState.NormalCursor;
+                    _gestureContactId = 0;
+                }
+
                 if (IsInScrollZone)
                 {
                     IsInScrollZone = false;
@@ -242,15 +276,10 @@ namespace TouchpadAdvancedTool.Core
 
             // 3. 處理捲動邏輯
             // 快速路徑：如果已經在 NormalCursor 狀態，直接返回，不需要進行區域判斷
+            // 優化：在這裡統一清除捲動區狀態，避免在多處重複檢查
             if (_currentGestureState == GestureState.NormalCursor)
             {
-                // 確保離開捲動區狀態（防止狀態不一致導致游標被攔截）
-                if (IsInScrollZone)
-                {
-                    IsInScrollZone = false;
-                    CurrentScrollZoneType = ScrollZoneType.None;
-                    ExitScrollZone?.Invoke(this, EventArgs.Empty);
-                }
+                ClearScrollZoneState();
                 return;
             }
 
@@ -302,13 +331,8 @@ namespace TouchpadAdvancedTool.Core
             }
             else
             {
-                // 離開捲動區
-                if (IsInScrollZone)
-                {
-                    IsInScrollZone = false;
-                    CurrentScrollZoneType = ScrollZoneType.None;
-                    ExitScrollZone?.Invoke(this, EventArgs.Empty);
-                }
+                // 離開捲動區，使用統一的清除方法
+                ClearScrollZoneState();
 
                 // 在非捲動區時，轉換為一般游標狀態
                 // 這確保了從非捲動區進入捲動區時不會觸發捲動（只有從 None 進入才會觸發）
@@ -508,8 +532,35 @@ namespace TouchpadAdvancedTool.Core
         {
             // 使用時間關聯法：如果在短時間內有觸控板事件，則認為滑鼠事件來自觸控板
             // 根據驗證報告建議，將時間視窗從 100ms 縮短到 30ms 以減少誤判
-            const int correlationWindowMs = 30; // 30ms 關聯視窗（原為 100ms）
+            // 根據當前狀態決定寬容度
+            bool isGestureActive = _currentGestureState == GestureState.Scrolling || 
+                                   _currentGestureState == GestureState.CornerTap;
+
             var timeSinceLastTouchpad = DateTime.Now - _lastTouchpadEventTime;
+
+            // 優化：如果正在進行手勢，使用較寬鬆的時間視窗 (100ms)
+            // 這能確保在捲動過程中游標不會移動，同時避免觸控板輸入中斷太久仍攔截真實滑鼠
+            if (isGestureActive)
+            {
+                const int gestureCorrelationWindowMs = 100;
+                if (timeSinceLastTouchpad.TotalMilliseconds < gestureCorrelationWindowMs)
+                {
+                    return true;
+                }
+                // 手勢狀態下但觸控板輸入已中斷超過 100ms，判斷為外部滑鼠
+                if (settings.DebugMode)
+                {
+                    _logger.LogDebug(
+                        "裝置判斷：手勢狀態但時間差={TimeDiff:F1}ms 超過閾值 {Threshold}ms，判斷為非觸控板事件",
+                        timeSinceLastTouchpad.TotalMilliseconds,
+                        gestureCorrelationWindowMs);
+                }
+                return false;
+            }
+
+            // 以下為非手勢狀態（一般游標移動）的判斷邏輯
+            // 使用嚴格的時間視窗 (30ms)
+            const int correlationWindowMs = 30;
 
             // 基本時間檢查
             if (timeSinceLastTouchpad.TotalMilliseconds >= correlationWindowMs)
@@ -581,6 +632,19 @@ namespace TouchpadAdvancedTool.Core
                    $"位置：({_primaryContact.X}, {_primaryContact.Y})，" +
                    $"百分比：({xPercent:F1}%, {yPercent:F1}%)，" +
                    $"捲動區：{(IsInScrollZone ? "是" : "否")}";
+        }
+
+        /// <summary>
+        /// 清除捲動區狀態（統一管理狀態清除邏輯）
+        /// </summary>
+        private void ClearScrollZoneState()
+        {
+            if (IsInScrollZone)
+            {
+                IsInScrollZone = false;
+                CurrentScrollZoneType = ScrollZoneType.None;
+                ExitScrollZone?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         /// <summary>

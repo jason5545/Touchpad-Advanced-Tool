@@ -25,6 +25,7 @@ namespace TouchpadAdvancedTool.Core
         private readonly Queue<(double deltaY, DateTime time)> _velocityHistory = new(10);
         private Timer? _inertiaTimer;
         private double _currentVelocityY; // 像素/秒
+        private double _velocitySumY; // 速度歷史累積值（優化計算）
         private bool _isInertiaScrolling;
         private TouchpadInfo? _lastTouchpadInfo;
         private TouchpadSettings? _lastSettings;
@@ -58,8 +59,9 @@ namespace TouchpadAdvancedTool.Core
                 // 更新速度歷史
                 UpdateVelocity(deltaY);
 
-                int scrollUnitsY = 0;
-                int scrollUnitsX = 0;
+                // 移除未使用的變數
+                // int scrollUnitsY = 0;
+                // int scrollUnitsX = 0;
 
                 // 計算每個 detent 需要的原始單位數
                 double rawPerDetent = ComputeRawUnitsPerDetent(args.TouchpadInfo, settings);
@@ -71,20 +73,27 @@ namespace TouchpadAdvancedTool.Core
                     // 水平捲動區：主要使用 X 方向移動來產生水平捲動
                     _accumulatedDeltaX += deltaX;
 
-                    if (Math.Abs(_accumulatedDeltaX) >= minThreshold)
-                    {
-                        double scrollUnitsXFloat = _accumulatedDeltaX / rawPerDetent;
+                    // 優化：預先計算轉換係數
+                    double wheelDeltaPerRawUnit = WHEEL_DELTA / rawPerDetent;
+                    double potentialWheelDelta = _accumulatedDeltaX * wheelDeltaPerRawUnit;
 
-                        // 只有當累積到至少0.05個單位時才注入（更低的閾值）
-                        if (Math.Abs(scrollUnitsXFloat) >= 0.05)
+                    // 最小發送閾值 (例如 15，即 1/8 個 notch)
+                    // 許多現代應用程式支援高解析度捲動
+                    const double MIN_SEND_DELTA = 15.0;
+
+                    if (Math.Abs(potentialWheelDelta) >= MIN_SEND_DELTA)
+                    {
+                        int sendAmount = (int)potentialWheelDelta;
+                        if (sendAmount != 0)
                         {
-                            scrollUnitsX = (int)Math.Round(scrollUnitsXFloat);
-                            if (scrollUnitsX != 0)
-                            {
-                                _accumulatedDeltaX -= scrollUnitsX * rawPerDetent; // 保留餘數
-                                if (settings.DebugMode)
-                                    _logger.LogDebug("水平捲動區: 累積={Accum:F2}, detentRaw={Detent:F2}, 注入={Units}", _accumulatedDeltaX, rawPerDetent, scrollUnitsX);
-                            }
+                            // 注入滾輪事件 (直接使用計算出的 delta)
+                            InjectScrollEvent(0, sendAmount, args.ZoneType, settings, true);
+                            
+                            // 從累積量中扣除已發送的部分（優化：使用預計算的係數）
+                            _accumulatedDeltaX -= sendAmount / wheelDeltaPerRawUnit;
+
+                            if (settings.DebugMode)
+                                _logger.LogDebug("水平捲動: 累積={Accum:F2}, 注入Delta={Delta}", _accumulatedDeltaX, sendAmount);
                         }
                     }
                 }
@@ -93,30 +102,30 @@ namespace TouchpadAdvancedTool.Core
                     // 垂直捲動區：主要使用 Y 方向移動來產生垂直捲動
                     _accumulatedDeltaY += deltaY;
 
-                    if (Math.Abs(_accumulatedDeltaY) >= minThreshold)
-                    {
-                        double scrollUnitsYFloat = _accumulatedDeltaY / rawPerDetent;
+                    // 優化：預先計算轉換係數
+                    double wheelDeltaPerRawUnit = WHEEL_DELTA / rawPerDetent;
+                    double potentialWheelDelta = _accumulatedDeltaY * wheelDeltaPerRawUnit;
+                    const double MIN_SEND_DELTA = 15.0;
 
-                        // 只有當累積到至少0.05個單位時才注入（更低的閾值）
-                        if (Math.Abs(scrollUnitsYFloat) >= 0.05)
+                    if (Math.Abs(potentialWheelDelta) >= MIN_SEND_DELTA)
+                    {
+                        int sendAmount = (int)potentialWheelDelta;
+                        if (sendAmount != 0)
                         {
-                            scrollUnitsY = (int)Math.Round(scrollUnitsYFloat);
-                            if (scrollUnitsY != 0)
-                            {
-                                _accumulatedDeltaY -= scrollUnitsY * rawPerDetent; // 保留餘數
-                                if (settings.DebugMode)
-                                    _logger.LogDebug("垂直捲動區: 累積={Accum:F2}, detentRaw={Detent:F2}, 注入={Units}", _accumulatedDeltaY, rawPerDetent, scrollUnitsY);
-                            }
+                            // 注入滾輪事件
+                            InjectScrollEvent(sendAmount, 0, args.ZoneType, settings, true);
+                            
+                            // 從累積量中扣除已發送的部分（優化：使用預計算的係數）
+                            _accumulatedDeltaY -= sendAmount / wheelDeltaPerRawUnit;
+
+                            if (settings.DebugMode)
+                                _logger.LogDebug("垂直捲動: 累積={Accum:F2}, 注入Delta={Delta}", _accumulatedDeltaY, sendAmount);
                         }
                     }
                 }
 
-                // 注入滾輪事件
-                if (scrollUnitsY != 0 || scrollUnitsX != 0)
-                {
-                    InjectScrollEvent(scrollUnitsY, scrollUnitsX, args.ZoneType, settings);
-                    _lastScrollTime = DateTime.Now;
-                }
+                // 注入滾輪事件 (已在上面處理)
+                _lastScrollTime = DateTime.Now;
             }
             catch (Exception ex)
             {
@@ -151,12 +160,15 @@ namespace TouchpadAdvancedTool.Core
         /// <summary>
         /// 注入滾輪事件
         /// </summary>
-        private void InjectScrollEvent(int scrollUnitsY, int scrollUnitsX, ScrollZoneType zoneType, TouchpadSettings settings)
+        /// <param name="deltaY">垂直滾輪 Delta (WHEEL_DELTA = 120)</param>
+        /// <param name="deltaX">水平滾輪 Delta</param>
+        /// <param name="isHighRes">是否為高解析度捲動 (直接使用 delta 值)</param>
+        private void InjectScrollEvent(int deltaY, int deltaX, ScrollZoneType zoneType, TouchpadSettings settings, bool isHighRes = false)
         {
             try
             {
                 // 垂直捲動
-                if (scrollUnitsY != 0)
+                if (deltaY != 0)
                 {
                     var input = new INPUT
                     {
@@ -167,7 +179,7 @@ namespace TouchpadAdvancedTool.Core
                             {
                                 X = 0,
                                 Y = 0,
-                                MouseData = (uint)(scrollUnitsY * WHEEL_DELTA),
+                                MouseData = (uint)(isHighRes ? deltaY : deltaY * WHEEL_DELTA),
                                 Flags = MOUSEEVENTF_WHEEL,
                                 Time = 0,
                                 ExtraInfo = IntPtr.Zero
@@ -184,12 +196,12 @@ namespace TouchpadAdvancedTool.Core
                     }
                     else if (settings.DebugMode)
                     {
-                        _logger.LogDebug("注入垂直滾輪：{Units} 單位", scrollUnitsY);
+                        _logger.LogDebug("注入垂直滾輪：{Delta} Delta", deltaY);
                     }
                 }
 
                 // 水平捲動
-                if (scrollUnitsX != 0)
+                if (deltaX != 0)
                 {
                     var input = new INPUT
                     {
@@ -200,7 +212,7 @@ namespace TouchpadAdvancedTool.Core
                             {
                                 X = 0,
                                 Y = 0,
-                                MouseData = (uint)(scrollUnitsX * WHEEL_DELTA),
+                                MouseData = (uint)(isHighRes ? deltaX : deltaX * WHEEL_DELTA),
                                 Flags = MOUSEEVENTF_HWHEEL,
                                 Time = 0,
                                 ExtraInfo = IntPtr.Zero
@@ -217,7 +229,7 @@ namespace TouchpadAdvancedTool.Core
                     }
                     else if (settings.DebugMode)
                     {
-                        _logger.LogDebug("注入水平滾輪：{Units} 單位", scrollUnitsX);
+                        _logger.LogDebug("注入水平滾輪：{Delta} Delta", deltaX);
                     }
                 }
             }
@@ -244,24 +256,26 @@ namespace TouchpadAdvancedTool.Core
         {
             var now = DateTime.Now;
             _velocityHistory.Enqueue((deltaY, now));
+            _velocitySumY += deltaY; // 優化：維護累積值
 
             // 只保留最近100ms的歷史
             while (_velocityHistory.Count > 0 && (now - _velocityHistory.Peek().time).TotalMilliseconds > 100)
             {
-                _velocityHistory.Dequeue();
+                var removed = _velocityHistory.Dequeue();
+                _velocitySumY -= removed.deltaY; // 優化：從累積值中移除
             }
 
             // 計算平均速度（像素/秒）
+            // 優化：直接使用累積值，無需遍歷 Queue
             if (_velocityHistory.Count >= 2)
             {
                 var first = _velocityHistory.First();
                 var last = _velocityHistory.Last();
-                double totalDelta = _velocityHistory.Sum(v => v.deltaY);
                 double totalTime = (last.time - first.time).TotalSeconds;
 
                 if (totalTime > 0)
                 {
-                    _currentVelocityY = totalDelta / totalTime;
+                    _currentVelocityY = _velocitySumY / totalTime;
                 }
             }
         }
@@ -327,50 +341,50 @@ namespace TouchpadAdvancedTool.Core
                 double rawPerDetent = ComputeRawUnitsPerDetent(_lastTouchpadInfo, _lastSettings);
                 double minThreshold = Math.Max(MinScrollThreshold, rawPerDetent * 0.05);
 
-                if (Math.Abs(_accumulatedDeltaY) >= minThreshold)
+                // 計算潛在的滾輪 delta
+                double potentialWheelDelta = (_accumulatedDeltaY / rawPerDetent) * WHEEL_DELTA;
+                const double MIN_SEND_DELTA = 10.0; // 慣性時使用更低的閾值以保持平滑
+
+                if (Math.Abs(potentialWheelDelta) >= MIN_SEND_DELTA)
                 {
-                    double scrollUnitsYFloat = _accumulatedDeltaY / rawPerDetent;
-
-                    if (Math.Abs(scrollUnitsYFloat) >= 0.05)
+                    int sendAmount = (int)potentialWheelDelta;
+                    if (sendAmount != 0)
                     {
-                        int scrollUnitsY = (int)Math.Round(scrollUnitsYFloat);
-                        if (scrollUnitsY != 0)
+                        // 注入滾輪事件
+                        try
                         {
-                            _accumulatedDeltaY -= scrollUnitsY * rawPerDetent;
-
-                            // 注入滾輪事件
-                            try
+                            var input = new INPUT
                             {
-                                var input = new INPUT
+                                Type = INPUT_MOUSE,
+                                U = new InputUnion
                                 {
-                                    Type = INPUT_MOUSE,
-                                    U = new InputUnion
+                                    mi = new MOUSEINPUT
                                     {
-                                        mi = new MOUSEINPUT
-                                        {
-                                            X = 0,
-                                            Y = 0,
-                                            MouseData = (uint)(scrollUnitsY * WHEEL_DELTA),
-                                            Flags = MOUSEEVENTF_WHEEL,
-                                            Time = 0,
-                                            ExtraInfo = IntPtr.Zero
-                                        }
+                                        X = 0,
+                                        Y = 0,
+                                        MouseData = (uint)sendAmount,
+                                        Flags = MOUSEEVENTF_WHEEL,
+                                        Time = 0,
+                                        ExtraInfo = IntPtr.Zero
                                     }
-                                };
-
-                                SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
-
-                                if (_lastSettings.DebugMode)
-                                {
-                                    _logger.LogDebug("慣性捲動注入：{Units} 單位，速度：{Velocity:F0}px/s",
-                                        scrollUnitsY, _currentVelocityY);
                                 }
-                            }
-                            catch (Exception ex)
+                            };
+
+                            SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+                            
+                            // 從累積量中扣除已發送的部分
+                            _accumulatedDeltaY -= sendAmount * (rawPerDetent / WHEEL_DELTA);
+
+                            if (_lastSettings.DebugMode)
                             {
-                                _logger.LogError(ex, "慣性捲動注入滾輪事件失敗");
-                                StopInertiaScroll();
+                                _logger.LogDebug("慣性捲動注入：{Delta} Delta，速度：{Velocity:F0}px/s",
+                                    sendAmount, _currentVelocityY);
                             }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "慣性捲動注入滾輪事件失敗");
+                            StopInertiaScroll();
                         }
                     }
                 }
@@ -396,6 +410,7 @@ namespace TouchpadAdvancedTool.Core
             _inertiaTimer?.Dispose();
             _inertiaTimer = null;
             _velocityHistory.Clear();
+            _velocitySumY = 0; // 優化：重置累積值
             _currentVelocityY = 0;
         }
     }
