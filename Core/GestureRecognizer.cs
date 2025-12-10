@@ -244,14 +244,14 @@ public class GestureRecognizer
         bool isTop = y <= _touchpadInfo.LogicalMinY + cornerHeight;
         bool isBottom = y >= _touchpadInfo.LogicalMaxY - cornerHeight;
 
-        // 判定角落（必須同時在兩個邊緣）
-        if (isLeft && isTop)
+        // 判定角落（必須同時在兩個邊緣，且該角落有設定動作）
+        if (isLeft && isTop && _settings.TopLeftAction != CornerAction.None)
             return TouchpadCorner.TopLeft;
-        if (isRight && isTop)
+        if (isRight && isTop && _settings.TopRightAction != CornerAction.None)
             return TouchpadCorner.TopRight;
-        if (isLeft && isBottom)
+        if (isLeft && isBottom && _settings.BottomLeftAction != CornerAction.None)
             return TouchpadCorner.BottomLeft;
-        if (isRight && isBottom)
+        if (isRight && isBottom && _settings.BottomRightAction != CornerAction.None)
             return TouchpadCorner.BottomRight;
 
         return TouchpadCorner.None;
